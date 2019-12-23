@@ -1,13 +1,14 @@
 #include <iostream>
 #include <math.h>
 
-#include "annealing.h"
+#include "annoptimizer.h"
 
 
 using namespace std;
 
 
 double f(const Vals &x);
+double f4(const Vals &x);
 double rozen(const Vals &x);
 double ackley(const Vals &x);
 double bill(const Vals &x);
@@ -79,10 +80,20 @@ int main()
 		}
 		cout << opt << endl;
 
+		// Threading
+		int nThreads = 1;
+		cout << "Use multithreading? (+/-): "; cin >> choice;
+		if (choice == '+')
+			while (true)
+			{
+				cout << " - enter amount of threads: "; cin >> nThreads;
+				if (nThreads > 1) break;
+				cout << "Error: amount of threads must be > 1 for multithreading!\nPlease, try again...\n";
+			}
+
 		// Optimization
-		Annealing ann(dim, bnds, opt);
-		const Result *res = ann.anneal(booth);
-		ann.printResult();
+		Annealing ann(bill, dim, bnds, opt);
+		AnnealingOptimizer optimizer(ann);
 	}
 	catch(const char* ex)
 	{
@@ -96,6 +107,12 @@ int main()
 double f(const Vals &x)
 {
 	return pow(x[0], 2.0);
+}
+
+double f4(const Vals &x)
+{
+	return x[0]*x[0] + x[1]*x[1] + x[2]*x[2] + x[3]*x[3] -
+			0.1*cos(3*x[0]) - 0.2*cos(2*x[1]) - 0.5*cos(5*x[2]) - 0.6*cos(x[3]);
 }
 
 double rozen(const Vals &x)
