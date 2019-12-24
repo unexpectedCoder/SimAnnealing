@@ -1,4 +1,8 @@
+#include <QCoreApplication>
+#include <QMetaType>
+
 #include <iostream>
+#include <fstream>
 #include <math.h>
 
 #include "annoptimizer.h"
@@ -6,6 +10,9 @@
 
 using namespace std;
 
+
+void readResultFile(int dim, int nThreads, Results &results);
+void findBestResult(const Results &results, Result &res);
 
 double f(const Vals &x);
 double f4(const Vals &x);
@@ -16,9 +23,13 @@ double booth(const Vals &x);
 double mathias(const Vals &x);
 
 
-int main()
+int main(int argc, char *argv[])
 {
+	QCoreApplication app(argc, argv);
+//	qRegisterMetaType<Result>("Result");
+
 	cout << "Optimization using simulated annealing.\nBMSTU, 2020\n\n";
+	fstream file(TXT_FILE, ios_base::out);
 
 	// Target function (space) dimension
 	int dim = 0;
@@ -41,6 +52,15 @@ int main()
 			if (xmin[i] < xmax[i]) break;
 			cout << "Error: min(x) must be < max(x)!\nPlease, try again...\n";
 		}
+	}
+
+	// Threading
+	int nThreads = 1;
+	while (true)
+	{
+		cout << " - enter amount of threads: "; cin >> nThreads;
+		if (nThreads > 0) break;
+		cout << "Error: amount of threads must be > 1 for multithreading!\nPlease, try again...\n";
 	}
 
 	// Init algorithm
@@ -80,27 +100,66 @@ int main()
 		}
 		cout << opt << endl;
 
-		// Threading
-		int nThreads = 1;
-		cout << "Use multithreading? (+/-): "; cin >> choice;
-		if (choice == '+')
-			while (true)
-			{
-				cout << " - enter amount of threads: "; cin >> nThreads;
-				if (nThreads > 1) break;
-				cout << "Error: amount of threads must be > 1 for multithreading!\nPlease, try again...\n";
-			}
-
 		// Optimization
-		Annealing ann(bill, dim, bnds, opt);
-		AnnealingOptimizer optimizer(ann);
+		Annealing ann(booth, dim, bnds, opt);
+		AnnealingOptimizer optimizer(ann, nThreads);
+		optimizer.optimize();
 	}
 	catch(const char* ex)
 	{
 		cout << ex << endl;
 	}
 
-	return 0;
+	Results results;
+	readResultFile(dim, nThreads, results);
+
+	int k = 0;
+	cout << "RESULTS:\n";
+	for (ResultsItr_c itr = results.begin(); itr != results.end(); itr++)
+		cout << " - thread #" << ++k << ":\n" << *itr << endl;
+
+	Result bestRes;
+	findBestResult(results, bestRes);
+	cout << "Best result of optimization:\n" << bestRes << endl;
+
+	cout << "\nFor exit press Ctrl+C...\n";
+	return app.exec();
+}
+
+
+void readResultFile(int dim, int nThreads, Results &results)
+{
+	fstream file(TXT_FILE, ios_base::in);
+	if (file.is_open())
+	{
+		for (int i = 0; i < nThreads; ++i)
+		{
+			Result r;
+			file >> r.extr;
+			for (int j = 0; j < dim; ++j)
+			{
+				double a;
+				file >> a;
+				r.xOpt.push_back(a);
+			}
+			file >> r.iters;
+
+			results.push_back(r);
+		}
+
+		file.close();
+		return;
+	}
+	throw "Error in <AnnealingOptimization::readResultFile>: file is not found!";
+}
+
+
+void findBestResult(const Results &results, Result &res)
+{
+	res.setNew(*results.begin());
+	for (ResultsItr_c itr = results.begin() + 1; itr != results.end(); itr++)
+		if (itr->extr < res.extr)
+			res.setNew(*itr);
 }
 
 

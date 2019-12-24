@@ -2,7 +2,7 @@
 #define ANNEALING_H
 
 #include <QObject>
-#include <QThread>
+#include <QMutex>
 
 #include <iostream>
 #include <vector>
@@ -14,15 +14,21 @@
 #include "result.h"
 
 
+#define TXT_FILE "../../AnnealingOptimization/results.txt"
+#define DAT_FILE "../../AnnealingOptimization/results.dat"
+
+
 class Annealing : public QObject
 {
 	Q_OBJECT
 
 public:
-	Annealing(double (*f)(const Vals&), int dim, const Bounds &bnds, const Options &opt);
-	Annealing(const Annealing &a);
+	explicit Annealing(double (*func)(const Vals&), int dim, const Bounds &bnds, const Options &opt, QObject *parent = nullptr);
+	explicit Annealing(const Annealing &a, QObject *parent = nullptr);
 	~Annealing();
 
+	const Result& getResult() const;
+	int getDimension() const;
 	void printResult() const;
 
 private:						// Functions
@@ -31,23 +37,26 @@ private:						// Functions
 	void reduceTemp();
 	double genNewState(int i);
 	bool isChangeState(double dE, double t);
+
 	void formResult();
+	void writeResultFile();
 
 private:						// Variables
-	double (*f)(const Vals&);		// Target function
+	QMutex mutex;
+
+	double (*f)(const Vals&);
 	// For random generator
 	const gsl_rng_type *gsl_T;
 	gsl_rng *gsl_r;
 	// Vars
-	int dim;										// Target function dimension
-	int iteration;							// Iteration number
-	double T;										// Current temperature
-	Vals s;											// Current state
-	double E;										// Current energy
+	int dim;								// Target function dimension
+	int iteration;					// Iteration number
+	double T;								// Current temperature
+	Vals s;									// Current state
+	double E;								// Current energy
 
-	Result *result;							// Saving result of the optimization
+	Result result;					// Saving result of the optimization
 
-protected:
 	Bounds *bounds;
 	Options *options;
 
@@ -55,7 +64,7 @@ public slots:
 	void anneal();
 
 signals:
-	void calculated();
+	void completed();
 };
 
 #endif // ANNEALING_H

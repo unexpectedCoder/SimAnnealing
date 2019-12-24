@@ -1,5 +1,8 @@
 QT += core
 
+TARGET = AnnealingOptimization
+TEMPLATE = app
+
 CONFIG += c++11 console
 
 SOURCES += \
@@ -26,3 +29,6 @@ DEPENDPATH += $$PWD/../../../../usr/local/include
 
 PRE_TARGETDEPS += $$PWD/../../../../usr/local/lib/libgsl.a
 PRE_TARGETDEPS += $$PWD/../../../../usr/local/lib/libgslcblas.a
+
+DISTFILES += \
+    results.txt

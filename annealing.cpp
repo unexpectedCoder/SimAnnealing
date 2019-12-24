@@ -2,24 +2,24 @@
 
 #include <math.h>
 #include <time.h>
+#include <fstream>
 
 
 using namespace std;
 
 
-Annealing::Annealing(double (*f)(const Vals&), int dim, const Bounds &bnds, const Options &opt)
+Annealing::Annealing(double (*func)(const Vals&), int dim, const Bounds &bnds, const Options &opt, QObject *parent)
+	: QObject(parent)
 {
 	if (dim < 1)
 		throw "Error in <Annealing>: target function dimension must be > 0!";
 
-	this->f = f;
-
+	f = func;
 	this->dim = dim;
 	bounds = new Bounds(bnds);
 	options = new Options(opt);
 
 	s.reserve(this->dim);
-	result = nullptr;
 
 	gsl_rng_env_setup();
 	gsl_T = gsl_rng_default;
@@ -33,7 +33,8 @@ Annealing::Annealing(double (*f)(const Vals&), int dim, const Bounds &bnds, cons
 }
 
 
-Annealing::Annealing(const Annealing &a) : QObject()
+Annealing::Annealing(const Annealing &a, QObject *parent)
+	: QObject(parent)
 {
 	f = a.f;
 	dim = a.dim;
@@ -57,6 +58,18 @@ Annealing::~Annealing()
 	delete bounds;
 	delete options;
 	gsl_rng_free(gsl_r);
+}
+
+
+const Result& Annealing::getResult() const
+{
+	return result;
+}
+
+
+int Annealing::getDimension() const
+{
+	return dim;
 }
 
 
@@ -88,26 +101,26 @@ void Annealing::anneal()
 			}
 			else continue;
 		}
-
 		reduceTemp();
 		++iteration;
 	} while (T > options->tEnd && iteration < options->maxIters);
 
 	formResult();
-	emit calculated();
+	writeResultFile();
+
+	emit completed();
 }
 
 
 void Annealing::printResult() const
 {
-	if (result != nullptr)
+	if (!result.xOpt.empty())
 	{
-		cout << "Optimization result:\n"
-				 << " - minimum of function: " << result->extr << '\n'
+		cout << " - minimum of function: " << result.extr << '\n'
 				 << " - optimal values:\n";
-		for (size_t i = 0; i < result->vOpt.size(); ++i)
-			cout << "\tx" << i + 1 << ":\t" << result->vOpt[i] << '\n';
-		cout << " - iterations: " << result->iters << '\n';
+		for (size_t i = 0; i < result.xOpt.size(); ++i)
+			cout << "\tx" << i + 1 << ":\t" << result.xOpt[i] << '\n';
+		cout << " - iterations: " << result.iters << '\n';
 	}
 	else
 		cout << "Result is empty now..\n";
@@ -140,15 +153,10 @@ double Annealing::genNewState(int i)
 	gsl_rng_set(gsl_r, clock());
 	double res = 0.0;
 
-	if (!bounds->isEmpty())
+	do
 	{
-		do
-		{
-			res = gsl_ran_gaussian(gsl_r, T) + s[i];
-		} while (res < bounds->bmin[i] || res > bounds->bmax[i]);
-	}
-	else
 		res = gsl_ran_gaussian(gsl_r, T) + s[i];
+	} while (res < bounds->bmin[i] || res > bounds->bmax[i]);
 
 	return res;
 }
@@ -156,5 +164,27 @@ double Annealing::genNewState(int i)
 
 void Annealing::formResult()
 {
-	result = new Result(iteration, E, s);
+	result.setNew(Result(iteration, E, s));
+}
+
+
+void Annealing::writeResultFile()
+{
+	mutex.lock();
+
+	fstream file(TXT_FILE, ios_base::app);
+	if (file.is_open())
+	{
+		file << result.extr;
+		for (ValsItr_c itr = result.xOpt.begin(); itr != result.xOpt.end(); itr++)
+			file << '\t' << *itr;
+		file << '\t' << result.iters << '\n';
+
+		file.close();
+		mutex.unlock();
+		return;
+	}
+
+	mutex.unlock();
+	throw "Error in <Annealing::writeToFile>: file is not found!";
 }
